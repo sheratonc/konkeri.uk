@@ -4,91 +4,37 @@
 <head>
 <meta charset="utf-8">
 <style>
-	@font-face { font-family: "Martian"; font-weight: 100 800; font-stretch: 75% 112.5%; src: url(../node_modules/@fontsource-variable/martian-mono/files/martian-mono-latin-standard-normal.woff2) format("woff2"); }
-	@font-face { font-family: "Plex"; font-weight: 100 700; src: url(../node_modules/@fontsource-variable/ibm-plex-sans/files/ibm-plex-sans-latin-wght-normal.woff2) format("woff2"); }
+	@font-face { font-family: "Switzer"; font-weight: 400; src: url(../public/fonts/switzer-400.woff2) format("woff2"); }
+	@font-face { font-family: "Switzer"; font-weight: 500; src: url(../public/fonts/switzer-500.woff2) format("woff2"); }
 	* { box-sizing: border-box; }
 	html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; }
 	body {
 		display: grid;
-		grid-template-columns: 1fr 392px;
-		gap: 52px;
-		padding: 56px 64px 0;
-		position: relative;
-		background: #f4efe9;
-		color: #2e2321;
-		font-family: "Plex", sans-serif;
-		font-variant-ligatures: none;
+		grid-template-columns: 1fr 470px;
+		gap: 56px;
+		padding: 48px 56px;
+		background: #0b0b0b;
+		color: #f4f4f0;
+		font-family: "Switzer", sans-serif;
+		letter-spacing: -0.01em;
 	}
-	.hexbg { position: absolute; top: 18px; left: 300px; z-index: 0; margin: 0; color: rgba(23, 15, 14, 0.1); font: 400 14px/25px "Martian"; font-stretch: 75%; white-space: pre;
-		-webkit-mask-image: linear-gradient(to bottom, #000 25%, transparent 85%), linear-gradient(to right, #000 25%, transparent 95%); -webkit-mask-composite: source-in; }
-	.hexbg b { color: rgba(216, 31, 42, 0.75); }
-	body > div { position: relative; z-index: 1; }
-	.top { display: flex; align-items: center; gap: 12px; color: #170f0e; font: 700 22px "Martian"; letter-spacing: -0.02em; }
-	.top svg { width: 26px; height: 26px; fill: none; stroke: #d81f2a; stroke-width: 2.8; stroke-linecap: square; }
-	.kicker { display: flex; align-items: center; gap: 12px; margin: 40px 0 18px; color: #6b5b55; font: 600 15px "Martian"; letter-spacing: 0.14em; text-transform: uppercase; }
-	.kicker i { width: 12px; height: 12px; background: #d81f2a; }
-	.name { display: flex; color: #170f0e; font: 800 110px/0.82 "Martian"; font-stretch: 112.5%; letter-spacing: -0.05em; }
-	.ch { display: grid; justify-items: center; }
-	.ch i { justify-self: stretch; margin-top: 14px; padding-top: 8px; border-top: 1.5px solid #c4b2a7; color: #9a8780; font: 500 15px/1 "Martian"; font-style: normal; font-stretch: 100%; letter-spacing: 0; text-align: center; }
-	.lede { margin: 34px 0 0; max-width: 25ch; color: #170f0e; font-size: 29px; line-height: 1.35; letter-spacing: -0.01em; }
-	.url { position: absolute; left: 64px; bottom: 30px; color: #b0121d; font: 600 18px "Martian"; }
-	.crop {
-		margin-top: 30px;
-		padding: 10px;
-		background:
-			linear-gradient(#170f0e 0 0) left top / 16px 1.5px, linear-gradient(#170f0e 0 0) left top / 1.5px 16px,
-			linear-gradient(#170f0e 0 0) right top / 16px 1.5px, linear-gradient(#170f0e 0 0) right top / 1.5px 16px,
-			linear-gradient(#170f0e 0 0) left bottom / 16px 1.5px, linear-gradient(#170f0e 0 0) left bottom / 1.5px 16px,
-			linear-gradient(#170f0e 0 0) right bottom / 16px 1.5px, linear-gradient(#170f0e 0 0) right bottom / 1.5px 16px;
-		background-repeat: no-repeat;
-	}
-	.plate { padding: 14px; background: #150f0e; }
-	.plate img { display: block; width: 100%; }
-	.cap { margin-top: 12px; color: #6b5b55; font: 500 14px "Martian"; }
-	.cap b { color: #170f0e; letter-spacing: 0.12em; }
+	.left { display: flex; flex-direction: column; }
+	.top { display: flex; align-items: center; gap: 12px; font-size: 26px; font-weight: 500; }
+	.top svg { width: 28px; height: 28px; fill: none; stroke: #3d63ff; stroke-width: 2.6; stroke-linecap: square; }
+	h1 { margin: auto 0 0; font-size: 84px; font-weight: 500; line-height: 1.02; letter-spacing: -0.035em; }
+	p { margin: 28px 0 0; font-size: 26px; line-height: 1.3; max-width: 19em; }
+	.url { display: inline-block; margin-top: 30px; padding: 10px 18px; background: #0034eb; color: #ffffff; font-size: 22px; font-weight: 500; align-self: flex-start; }
+	.plate { background: #000; padding: 22px; aspect-ratio: 1; align-self: center; }
+	.plate img { display: block; width: 100%; height: 100%; }
 </style>
 </head>
 <body>
-	<pre class="hexbg">00000000  <b>7f 45 4c 46</b> 02 01 01 00  00 00 00 00 00 00 00 00
-00000010  03 00 3e 00 01 00 00 00  60 14 00 00 00 00 00 00
-00000020  40 00 00 00 00 00 00 00  c8 0a 00 00 00 00 00 00
-00000030  00 00 00 00 40 00 38 00  08 00 40 00 10 00 0e 00
-00000040  06 00 00 00 04 00 00 00  40 00 00 00 00 00 00 00
-00000050  40 00 00 00 00 00 00 00  40 00 00 00 00 00 00 00
-00000060  c0 01 00 00 00 00 00 00  c0 01 00 00 00 00 00 00
-00000070  08 00 00 00 00 00 00 00  01 00 00 00 04 00 00 00
-00000080  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00
-00000090  00 00 00 00 00 00 00 00  28 04 00 00 00 00 00 00
-000000a0  28 04 00 00 00 00 00 00  00 10 00 00 00 00 00 00
-000000b0  01 00 00 00 05 00 00 00  30 04 00 00 00 00 00 00
-000000c0  30 14 00 00 00 00 00 00  30 14 00 00 00 00 00 00
-000000d0  9b 02 00 00 00 00 00 00  9b 02 00 00 00 00 00 00
-000000e0  00 10 00 00 00 00 00 00  01 00 00 00 06 00 00 00
-000000f0  d0 06 00 00 00 00 00 00  d0 26 00 00 00 00 00 00
-00000100  d0 26 00 00 00 00 00 00  00 01 00 00 00 00 00 00
-00000110  30 09 00 00 00 00 00 00  00 10 00 00 00 00 00 00
-00000120  02 00 00 00 06 00 00 00  d0 06 00 00 00 00 00 00
-00000130  d0 26 00 00 00 00 00 00  d0 26 00 00 00 00 00 00
-00000140  d0 00 00 00 00 00 00 00  d0 00 00 00 00 00 00 00
-00000150  08 00 00 00 00 00 00 00  52 e5 74 64 04 00 00 00
-00000160  d0 06 00 00 00 00 00 00  d0 26 00 00 00 00 00 00
-00000170  d0 26 00 00 00 00 00 00  00 01 00 00 00 00 00 00
-00000180  30 09 00 00 00 00 00 00  01 00 00 00 00 00 00 00
-00000190  50 e5 74 64 04 00 00 00  d8 02 00 00 00 00 00 00
-000001a0  d8 02 00 00 00 00 00 00  d8 02 00 00 00 00 00 00
-000001b0  4c 00 00 00 00 00 00 00  4c 00 00 00 00 00 00 00</pre>
-	<div>
-		<div class="top"><svg viewBox="0 0 24 24"><path d="M3 3H9V9H3V21H9V15H15V21H21V9H15V3H21"/></svg>konkeri.uk</div>
-		<p class="kicker"><i></i>Beginner · Windows &amp; Linux internals</p>
-		<div class="name">
-			<span class="ch"><b>s</b><i>73</i></span><span class="ch"><b>h</b><i>68</i></span><span class="ch"><b>e</b><i>65</i></span><span class="ch"><b>r</b><i>72</i></span><span class="ch"><b>a</b><i>61</i></span><span class="ch"><b>t</b><i>74</i></span><span class="ch"><b>o</b><i>6f</i></span><span class="ch"><b>n</b><i>6e</i></span>
-		</div>
-		<p class="lede">A beginner learning how binaries work, one small tool at a time.</p>
+	<div class="left">
+		<div class="top"><svg viewBox="0 0 24 24"><path d="M3 3H9V9H3V21H9V15H15V21H21V9H15V3H21"/></svg>konkeri</div>
+		<h1>Small tools that take binaries apart</h1>
+		<p>sheraton’s open-source tools for reading stripped binaries.</p>
+		<span class="url">konkeri.uk</span>
 	</div>
-	<div>
-		<div class="crop"><div class="plate"><img src="../public/fig-unwind-map.svg" alt=""></div></div>
-		<p class="cap"><b>FIG. 1</b> · unwind-map · 578 functions</p>
-	</div>
-	<div class="url">github.com/sheratonc</div>
+	<div class="plate"><img src="../public/fig-unwind-map.svg" alt=""></div>
 </body>
 </html>

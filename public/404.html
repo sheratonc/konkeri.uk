@@ -1,26 +1,25 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="no-js">
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<meta name="color-scheme" content="light dark">
-	<title>404 · konkeri</title>
+	<meta name="color-scheme" content="dark light">
+	<title>Page not found · konkeri</title>
 	<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 	<script src="/theme.js"></script>
 	<link rel="stylesheet" href="/404.css">
 </head>
 <body>
+	<header class="bar">
+		<a class="mark" href="/" aria-label="konkeri, home">
+			<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3H9V9H3V21H9V15H15V21H21V9H15V3H21"/></svg>
+			<span>konkeri</span>
+		</a>
+	</header>
 	<main>
-		<p class="sig"><i></i>SIGSEGV · segmentation fault</p>
-		<h1>0x404</h1>
-		<p>The faulting address isn't mapped: <code>rva_to_offset</code> found no section that contains this page.</p>
-		<pre>  #0  0x0000000000000404 in ?? ()
-  #1  <a href="/">konkeri.uk</a> (return here)</pre>
-		<p class="mem">Memory around the fault <span>(real bytes from unwind-map's x86_64-pie test binary)</span></p>
-		<pre class="dump">000003e0  42 0e 18 41 0e 20 83 04  8e 03 8f 02 74 0e 18 42
-000003f0  0e 10 42 0e 08 00 00 00  10 00 00 00 d4 00 00 00
-00000400  80 12 00 00 <b>05</b> 00 00 00  00 00 00 00 14 00 00 00
-00000410  e8 00 00 00 7c 12 00 00  3b 00 00 00 00 00 00 00</pre>
+		<h1>Nothing lives at this address</h1>
+		<p>This page isn’t mapped. It may have moved when the site was rebuilt, or the link has a typo.</p>
+		<p><a class="btn" href="/">Back to the tools</a></p>
 	</main>
 </body>
 </html>

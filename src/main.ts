@@ -1,10 +1,7 @@
-import "@fontsource-variable/martian-mono/standard.css";
-import "@fontsource-variable/ibm-plex-sans/wght.css";
-import "@fontsource-variable/ibm-plex-sans/wght-italic.css";
 import "./style.css";
-import { hilbert } from "./hilbert.ts";
+import snapshot from "./github-snapshot.json";
 import { OUTPUTS, type Line } from "./outputs.ts";
-import type { GitHubData, Repo } from "./types.ts";
+import type { GitHubData, Release, Repo } from "./types.ts";
 
 // ---------------------------------------------------------------- helpers
 type Child = Node | string | null | undefined | false;
@@ -20,11 +17,14 @@ function h(tag: string, attrs: Record<string, string> = {}, ...children: Child[]
 }
 
 const $ = (id: string) => document.getElementById(id);
+const SVGNS = "http://www.w3.org/2000/svg";
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-const hex = (n: number, width = 6) => `0x${Math.max(0, Math.round(n)).toString(16).padStart(width, "0")}`;
-const day = (iso: string) => iso.slice(0, 10);
+const narrow = window.matchMedia("(max-width: 1023px)");
+const utcDay = (iso: string) => iso.slice(0, 10);
+const utcTime = (iso: string) => iso.slice(11, 16);
 const longDay = (iso: string) =>
-	new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+	new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+const bytes = (n: number) => `${n.toLocaleString("en-GB")} bytes`;
 
 function ago(iso: string): string {
 	const seconds = (Date.now() - new Date(iso).getTime()) / 1000;
@@ -46,52 +46,174 @@ function listing(lines: Line[]): DocumentFragment {
 	return frag;
 }
 
+/** The first sentence of a release note, without Markdown emphasis. */
+function firstSentence(text: string): string {
+	const plain = text.replace(/\*\*|__|`/g, "").trim();
+	const cut = plain.search(/[.!?](\s|$)/);
+	return cut > 0 ? plain.slice(0, cut + 1) : plain;
+}
+
 // ------------------------------------------------------------------ theme
 function initTheme() {
 	const root = document.documentElement;
-	const dark = window.matchMedia("(prefers-color-scheme: dark)");
-	const current = () => root.dataset.theme ?? (dark.matches ? "ink" : "paper");
-	const buttons = document.querySelectorAll<HTMLButtonElement>("[data-theme-set]");
-	const sync = () => buttons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.themeSet === current())));
-	for (const b of buttons) {
-		b.addEventListener("click", () => {
-			const theme = b.dataset.themeSet!;
-			root.dataset.theme = theme;
-			try { localStorage.setItem("theme", theme); } catch { /* private mode */ }
-			sync();
-		});
-	}
-	dark.addEventListener("change", sync);
+	const button = $("theme") as HTMLButtonElement | null;
+	if (!button) return;
+	// Ink is the site's default; paper is the visitor's choice, remembered.
+	const current = () => root.dataset.theme ?? "ink";
+	const sync = () => {
+		const next = current() === "ink" ? "paper" : "ink";
+		button.textContent = next === "ink" ? "Dark" : "Light";
+		button.setAttribute("aria-label", `Switch to the ${next === "ink" ? "dark" : "light"} theme`);
+	};
+	button.addEventListener("click", () => {
+		const theme = current() === "ink" ? "paper" : "ink";
+		root.dataset.theme = theme;
+		try { localStorage.setItem("theme", theme); } catch { /* private mode */ }
+		sync();
+	});
 	sync();
 }
 
-// ----------------------------------------------- hero: bytes decode to text
-function decodeName() {
-	if (reduceMotion) return;
-	const HEX = "0123456789abcdef";
-	document.querySelectorAll<HTMLElement>(".name .ch b").forEach((b, i) => {
-		const final = b.textContent ?? "";
-		const steps = 6 + i * 2;
-		let n = 0;
-		b.textContent = HEX[(Math.random() * 16) | 0];
-		b.classList.add("scramble");
-		const tick = () => {
-			if (++n >= steps) {
-				b.textContent = final;
-				b.classList.remove("scramble");
-				return;
-			}
-			b.textContent = HEX[(Math.random() * 16) | 0];
-			setTimeout(tick, 42);
-		};
-		setTimeout(tick, 160 + i * 30);
-	});
+// ------------------------------------------------- hero: the words rise once
+function introHero() {
+	const title = document.querySelector<HTMLElement>(".hero h1");
+	const hero = document.querySelector<HTMLElement>(".hero");
+	if (!title || !hero || reduceMotion) return;
+	const words = (title.textContent ?? "").split(/\s+/).filter(Boolean);
+	title.setAttribute("aria-label", words.join(" "));
+	title.replaceChildren(...words.flatMap((w, i) => {
+		const inner = h("span", {}, w.replace(/ /g, " "));
+		inner.style.setProperty("--i", String(i));
+		const word = h("span", { class: "h-word", "aria-hidden": "true" }, inner);
+		return i < words.length - 1 ? [word, " "] : [word];
+	}));
+	hero.querySelectorAll<HTMLElement>(".hero-text > *, .dies").forEach((el, i) => el.style.setProperty("--i", String(i)));
+	hero.classList.add("is-loading");
+	// A timer rather than requestAnimationFrame: frames don't run in a background tab, timers still do.
+	window.setTimeout(() => hero.classList.remove("is-loading"), 40);
 }
 
-// ------------------------------------------- Fig. 1: the binary, mapped
-async function initFigure() {
-	const plate = $("fig-plate");
-	const readout = $("fig-readout");
+// --------------------------------------- hero picture: the x86 line, slowly
+function initDies() {
+	const frame = document.querySelector<HTMLElement>(".dies-frame");
+	const caption = $("dies-caption");
+	const credit = $("dies-credit") as HTMLAnchorElement | null;
+	if (!frame || !caption || !credit || reduceMotion) return;
+	const pictures = [...frame.querySelectorAll<HTMLImageElement>("img")];
+	let at = 0;
+	let timer = 0;
+	let visible = true;
+	const show = (i: number) => {
+		pictures[at].classList.remove("is-on");
+		at = i;
+		const pic = pictures[at];
+		pic.loading = "eager";
+		pic.classList.add("is-on");
+		caption.textContent = pic.dataset.caption ?? "";
+		credit.href = pic.dataset.src ?? credit.href;
+	};
+	const tick = () => show((at + 1) % pictures.length);
+	const run = () => {
+		window.clearInterval(timer);
+		if (visible && !document.hidden) timer = window.setInterval(tick, 5600);
+	};
+	// Warm the next pictures once the first has painted.
+	window.addEventListener("load", () => pictures.forEach((p) => { p.loading = "eager"; }), { once: true });
+	document.addEventListener("visibilitychange", run);
+	new IntersectionObserver(([e]) => { visible = e.isIntersecting; run(); }).observe(frame);
+}
+
+// -------------------------------------------------------- tools + preview
+interface Tool { lang: string; url: string; highlight: string }
+const TOOLS: Record<string, Tool> = {
+	"unwind-map": { lang: "Rust", url: "https://github.com/sheratonc/unwind-map", highlight: "Recovers function boundaries from stripped Linux ELF binaries using the .eh_frame unwind tables. In my tests it found every function that has unwind info without a false start, and its output goes straight back into objcopy to give a stripped binary its symbols again." },
+	"pe-walker": { lang: "C++", url: "https://github.com/sheratonc/pe-walker", highlight: "Headers, sections, imports and exports of any PE file, read on Windows, Linux or macOS." },
+	"pe-diff": { lang: "C++", url: "https://github.com/sheratonc/pe-diff", highlight: "Shows what changed between two builds and exits 1 when anything did, so it can gate a CI pipeline." },
+	"rtti-dump": { lang: "C++", url: "https://github.com/sheratonc/rtti-dump", highlight: "Rebuilds inheritance trees from stripped MSVC binaries and can write them out as Mermaid class diagrams." },
+	"vtable-dump": { lang: "C++", url: "https://github.com/sheratonc/vtable-dump", highlight: "Finds every vtable through its RTTI back-reference and lists the code in each slot. It pairs with rtti-dump." },
+	"pattern-scan": { lang: "C++", url: "https://github.com/sheratonc/pattern-scan", highlight: "A single header for IDA-style byte signatures, plus the patscan command-line tool. It came out about 11× faster than a byte-by-byte scan in my benchmark." },
+	Panda: { lang: "Electron", url: "https://github.com/sheratonc/Panda", highlight: "A Windows app that reads each launcher’s own files to list games from Steam, Epic, GOG, Ubisoft, EA, Battle.net, Riot and Rockstar in one Steam-style library, then hands launching back to the real client." },
+	"opencode-discord-rpc": { lang: "JavaScript", url: "https://github.com/sheratonc/opencode-discord-rpc", highlight: "Shows your model, project and live context size in Discord while you code with OpenCode V2. It talks to Discord’s local IPC pipe directly, so there are no dependencies and no build step." },
+};
+const repos = new Map<string, Repo>();
+
+function renderPreview(name: string) {
+	const pane = $("preview");
+	const tool = TOOLS[name];
+	if (!pane || !tool) return;
+	const repo = repos.get(name);
+	const latest = repo?.releases[0];
+	const meta: Child[] = [tool.lang];
+	if (repo) {
+		meta.push(", ", latest ? h("a", { href: latest.url }, latest.tag) : "no release yet", `, updated ${ago(repo.pushed)}`);
+	}
+	const out = OUTPUTS[name];
+	const parts: Child[] = [
+		h("header", { class: "preview-head" }, h("h3", {}, name), h("p", { class: "preview-meta" }, ...meta)),
+		h("p", { class: "preview-desc" }, tool.highlight),
+		out ? h("pre", { class: "term", "data-ui": "", tabindex: "0", "aria-label": `${name}: a real run` }, listing(out)) : null,
+		h("p", { class: "preview-foot" },
+			h("span", {}, name === "Panda" || name === "opencode-discord-rpc" ? "What its README documents." : "A real run on its test binaries."),
+			h("a", { href: tool.url }, "Source on GitHub"),
+		),
+	];
+	pane.replaceChildren(...parts.filter((c): c is Node => Boolean(c)));
+}
+
+function initTools() {
+	const ledger = $("ledger");
+	const pane = $("preview");
+	const grid = document.querySelector<HTMLElement>(".tools-grid");
+	if (!ledger || !pane || !grid) return;
+	// Each row becomes a button that shows its tool; without script, rows stay links to GitHub.
+	const rows = [...ledger.querySelectorAll<HTMLAnchorElement>("a.row")].map((a) => {
+		const b = h("button", { class: "row", type: "button", "data-tool": a.dataset.tool ?? "", "aria-controls": "preview", "aria-pressed": "false" });
+		b.append(...a.childNodes);
+		a.replaceWith(b);
+		return b as HTMLButtonElement;
+	});
+	let current = "";
+	const place = () => {
+		const row = rows.find((r) => r.dataset.tool === current);
+		if (narrow.matches && row) row.after(pane);
+		else if (pane.parentElement !== grid) grid.append(pane);
+	};
+	const select = (name: string, focus = false) => {
+		if (name === current) return;
+		current = name;
+		for (const r of rows) {
+			const on = r.dataset.tool === name;
+			r.classList.toggle("is-on", on);
+			r.setAttribute("aria-pressed", String(on));
+			if (on && focus) r.focus();
+		}
+		renderPreview(name);
+		place();
+	};
+	rows.forEach((r, i) => {
+		const name = r.dataset.tool!;
+		r.addEventListener("click", () => select(name));
+		r.addEventListener("focus", () => { if (!narrow.matches) select(name); });
+		r.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse" && !narrow.matches) select(name); });
+		r.addEventListener("keydown", (e) => {
+			const step = e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : 0;
+			if (!step) return;
+			e.preventDefault();
+			const next = rows[(i + step + rows.length) % rows.length];
+			if (narrow.matches) next.focus(); else select(next.dataset.tool!, true);
+		});
+	});
+	narrow.addEventListener("change", place);
+	select("unwind-map");
+}
+
+// ------------------------------------------------ the map, as an instrument
+const MIN_SIZES = [0, 64, 128, 256, 512, 1024, 2048, 4096];
+interface Fn { el: SVGGeometryElement; name: string; start: number; startHex: string; endHex: string; size: number; kind: string }
+
+async function initMap() {
+	const plate = $("plate");
+	const readout = $("readout");
 	if (!plate || !readout) return;
 	let svg: SVGSVGElement;
 	try {
@@ -100,367 +222,343 @@ async function initFigure() {
 		if (doc.documentElement.nodeName !== "svg") return;
 		svg = document.importNode(doc.documentElement, true) as unknown as SVGSVGElement;
 	} catch {
-		const img = document.createElement("img");
-		img.src = "/fig-unwind-map.svg";
-		img.alt = "Hilbert-curve map of a stripped binary's executable code, one coloured trace per recovered function";
-		plate.replaceChildren(img);
-		return;
+		return; // the <img> already in the plate stays as the fallback
 	}
 	svg.classList.add("fig-svg");
-	plate.replaceChildren(svg);
-	const traces = [...svg.querySelectorAll<SVGPolylineElement>("polyline")];
+	svg.setAttribute("aria-hidden", "true");
+	svg.removeAttribute("role");
 
-	// Trace the curve like a pen, in address order. Pointing at the map while
-	// it's still drawing finishes the drawing at once rather than fighting it.
-	const drawing: Animation[] = [];
-	if (!reduceMotion) {
-		const lens = traces.map((t) => (t.getAttribute("points") ?? "").trim().split(/\s+/).length);
-		const total = lens.reduce((a, b) => a + b, 0);
-		const T = 2400;
-		let acc = 0;
-		traces.forEach((t, i) => {
-			t.setAttribute("pathLength", "1");
-			drawing.push(t.animate(
-				[{ strokeDasharray: "0 1", opacity: 0 }, { opacity: 1, offset: 0.001 }, { strokeDasharray: "1 0", opacity: 1 }],
-				{ duration: Math.max(12, (lens[i] / total) * T), delay: 150 + (acc / total) * T, easing: "linear", fill: "backwards" },
-			));
-			acc += lens[i];
-		});
+	// Small functions are drawn as dots with a <title>; give them the same data as the traces.
+	for (const c of svg.querySelectorAll<SVGCircleElement>("circle")) {
+		const title = c.querySelector("title");
+		const m = title?.textContent?.match(/^(\S+) (0x[0-9a-f]+)-(0x[0-9a-f]+) \((\d+) bytes\)/i);
+		title?.remove();
+		if (m) c.dataset.f = `${m[1]}|${m[2]}|${m[3]}|${m[4]}|f`;
 	}
-	svg.addEventListener("pointerenter", () => { for (const a of drawing) a.finish(); }, { once: true });
+	const all: Fn[] = [...svg.querySelectorAll<SVGGeometryElement>("[data-f]")].map((el) => {
+		const [name, startHex, endHex, size, kind] = (el.dataset.f ?? "").split("|");
+		if (kind === "g") el.classList.add("is-gap");
+		return { el, name, start: parseInt(startHex, 16) || 0, startHex, endHex, size: Number(size) || 0, kind };
+	});
+	const fns = all.filter((f) => f.kind === "f" || f.kind === "l").sort((a, b) => a.start - b.start);
+	plate.replaceChildren(svg);
 
-	// Hovering lifts one trace out of the map with an outline; the rest of the
-	// map stays exactly as it is. Pointing at the gaps between traces keeps the
-	// current one, so moving across the map doesn't flicker.
+	// Hovering lifts one trace out of the map with a dark outline.
 	const overlay = document.createElementNS(SVGNS, "g");
 	overlay.setAttribute("class", "fig-overlay");
 	const halo = document.createElementNS(SVGNS, "polyline");
 	halo.setAttribute("class", "fig-halo");
 	const lift = document.createElementNS(SVGNS, "polyline");
 	lift.setAttribute("class", "fig-lift");
-	overlay.append(halo, lift);
+	const dot = document.createElementNS(SVGNS, "circle");
+	overlay.append(halo, lift, dot);
 	svg.append(overlay);
 
 	const idle = readout.textContent ?? "";
-	let hot: SVGPolylineElement | null = null;
-	svg.addEventListener("pointerover", (e) => {
-		const t = e.target;
-		if (!(t instanceof SVGPolylineElement) || !t.dataset.f || t === hot) return;
-		hot = t;
-		const points = t.getAttribute("points") ?? "";
+	let hot: Fn | null = null;
+	const show = (f: Fn | null) => {
+		hot = f;
+		if (!f) {
+			overlay.classList.remove("on");
+			readout.textContent = idle;
+			return;
+		}
+		const isDot = f.el instanceof SVGCircleElement;
+		const points = isDot ? "" : f.el.getAttribute("points") ?? "";
 		halo.setAttribute("points", points);
 		lift.setAttribute("points", points);
-		lift.setAttribute("stroke", t.getAttribute("stroke") ?? "#fff");
+		lift.setAttribute("stroke", f.el.getAttribute("stroke") ?? "#fff");
+		if (isDot) {
+			dot.setAttribute("cx", f.el.getAttribute("cx") ?? "0");
+			dot.setAttribute("cy", f.el.getAttribute("cy") ?? "0");
+			dot.setAttribute("r", "1.4");
+			dot.setAttribute("fill", f.el.getAttribute("fill") ?? "#fff");
+		} else dot.setAttribute("r", "0");
 		overlay.classList.add("on");
-		const [name, start, end, size, kind] = t.dataset.f.split("|");
-		readout.textContent =
-			kind === "u" ? `past the end of the code · ${size} empty cells`
-			: kind === "g" ? `gap  ${start}–${end}  ${Number(size).toLocaleString("en-GB")} bytes · no unwind info`
-			: `${name}  ${start}–${end}  ${Number(size).toLocaleString("en-GB")} bytes${kind === "l" ? " · has landing pads" : ""}`;
-	});
-	svg.addEventListener("pointerleave", () => {
-		hot = null;
-		overlay.classList.remove("on");
-		readout.textContent = idle;
-	});
-}
-
-// ----------------------------------------------- section table + offsets
-const SECTIONS = [...document.querySelectorAll<HTMLElement>("[data-sec]")];
-
-function layoutOffsets() {
-	for (const s of SECTIONS) {
-		const top = s.getBoundingClientRect().top + window.scrollY;
-		const size = s.offsetHeight;
-		const addr = s.querySelector(".gutter .addr");
-		if (addr) addr.textContent = hex(top);
-		const sz = s.querySelector(".gutter .size");
-		if (sz) sz.textContent = hex(size, 4);
-		const row = document.querySelector(`.shdr tr[data-for="${s.id}"]`);
-		if (row) {
-			row.querySelector(".off")!.textContent = hex(top);
-			row.querySelector(".size")!.textContent = hex(size, 4);
-		}
-	}
-}
-
-function initToc() {
-	for (const row of document.querySelectorAll<HTMLTableRowElement>(".shdr tbody tr")) {
-		row.addEventListener("click", (e) => {
-			if ((e.target as Element).closest("a")) return;
-			row.querySelector("a")?.click();
-		});
-	}
-}
-
-// ------------------------------------------- minimap: this page, as a curve
-const SIDE = 16;
-const CELLS = SIDE * SIDE;
-const CURVE = Array.from({ length: CELLS }, (_, d) => hilbert(SIDE, d).map((v) => v * 8 + 4) as [number, number]);
-const pts = (from: number, to: number) => CURVE.slice(from, to + 1).map(([x, y]) => `${x},${y}`).join(" ");
-const SVGNS = "http://www.w3.org/2000/svg";
-
-function initMinimap() {
-	const box = $("minimap");
-	const svg = $("mm") as unknown as SVGSVGElement | null;
-	const secLabel = $("mm-sec");
-	const offLabel = $("mm-off");
-	if (!box || !svg || !secLabel || !offLabel) return;
-
-	let ranges: { el: HTMLElement; top: number; from: number; to: number; dim: SVGPolylineElement; lit: SVGPolylineElement }[] = [];
-	const cursor = document.createElementNS(SVGNS, "circle");
-	cursor.setAttribute("r", "3.6");
-	cursor.setAttribute("class", "mm-cursor");
-	const root = document.documentElement;
-
-	const build = () => {
-		const docH = root.scrollHeight;
-		svg.replaceChildren();
-		ranges = SECTIONS.map((el, i) => {
-			const top = el.getBoundingClientRect().top + window.scrollY;
-			const from = Math.min(CELLS - 1, Math.floor((top / docH) * CELLS));
-			const next = SECTIONS[i + 1];
-			const to = next ? Math.min(CELLS - 1, Math.floor(((next.getBoundingClientRect().top + window.scrollY) / docH) * CELLS)) : CELLS - 1;
-			const dim = document.createElementNS(SVGNS, "polyline");
-			dim.setAttribute("points", pts(from, to));
-			dim.setAttribute("class", `mm-dim s${i}`);
-			const lit = document.createElementNS(SVGNS, "polyline");
-			lit.setAttribute("class", `mm-lit s${i}`);
-			svg.append(dim, lit);
-			return { el, top, from, to, dim, lit };
-		});
-		svg.append(cursor);
-		update();
+		const what = f.kind === "u" ? "Past the end of the code"
+			: f.kind === "g" ? `No unwind info, ${f.startHex}–${f.endHex}, ${bytes(f.size)}`
+			: null;
+		readout.replaceChildren(...(what
+			? [h("b", {}, what)]
+			: [h("b", {}, f.name), ` ${f.startHex}–${f.endHex}, ${bytes(f.size)}${f.kind === "l" ? ", has landing pads" : ""}`]));
 	};
 
-	const update = () => {
-		const docH = root.scrollHeight;
-		const mid = window.scrollY + window.innerHeight / 2;
-		const at = Math.min(CELLS - 1, Math.max(0, Math.floor((mid / docH) * CELLS)));
-		for (const r of ranges) {
-			if (at > r.from) r.lit.setAttribute("points", pts(r.from, Math.min(at, r.to)));
-			else r.lit.removeAttribute("points");
-		}
-		// The section under the middle of the viewport (the last one once the page bottoms out)
-		// sets the page's accent to its colour on the map.
-		const atBottom = window.scrollY + window.innerHeight >= docH - 4;
-		let zone = 0;
-		ranges.forEach((r, i) => { if (r.top <= mid) zone = i; });
-		if (atBottom) zone = ranges.length - 1;
-		if (root.dataset.zone !== String(zone)) root.dataset.zone = String(zone);
-
-		const [x, y] = CURVE[at];
-		cursor.setAttribute("cx", String(x));
-		cursor.setAttribute("cy", String(y));
-		if (ranges[zone]) secLabel.textContent = ranges[zone].el.dataset.sec ?? "";
-		offLabel.textContent = hex(window.scrollY);
-		box.classList.toggle("on", window.scrollY > window.innerHeight * 0.6);
+	// The traces are thin, so pointing goes by grid cell: every cell of the 128 × 128 curve belongs to one trace.
+	const SIDE = 128;
+	const cells: (Fn | undefined)[] = new Array(SIDE * SIDE);
+	const claim = (x: number, y: number, f: Fn) => {
+		if (x >= 0 && y >= 0 && x < SIDE && y < SIDE) cells[Math.floor(y) * SIDE + Math.floor(x)] = f;
 	};
-
-	svg.addEventListener("click", (e) => {
+	for (const f of all) {
+		if (f.el instanceof SVGCircleElement) { claim(Number(f.el.getAttribute("cx")), Number(f.el.getAttribute("cy")), f); continue; }
+		const pts = (f.el.getAttribute("points") ?? "").trim().split(/\s+/).map((p) => p.split(",").map(Number));
+		for (let i = 0; i < pts.length; i++) {
+			const [x1, y1] = pts[i];
+			const [x0, y0] = pts[i - 1] ?? pts[i];
+			const steps = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+			for (let s = 0; s <= steps; s++) claim(x0 + ((x1 - x0) * s) / (steps || 1), y0 + ((y1 - y0) * s) / (steps || 1), f);
+		}
+	}
+	const cellAt = (e: PointerEvent): Fn | undefined => {
 		const r = svg.getBoundingClientRect();
-		const x = ((e.clientX - r.left) / r.width) * 128;
-		const y = ((e.clientY - r.top) / r.height) * 128;
-		let best = 0;
-		let bestD = Infinity;
-		CURVE.forEach(([cx, cy], i) => {
-			const d = (cx - x) ** 2 + (cy - y) ** 2;
-			if (d < bestD) { bestD = d; best = i; }
-		});
-		const docH = document.documentElement.scrollHeight;
-		window.scrollTo({ top: (best / CELLS) * docH - window.innerHeight / 2, behavior: reduceMotion ? "auto" : "smooth" });
-	});
-
-	let queued = false;
-	window.addEventListener("scroll", () => {
-		if (queued) return;
-		queued = true;
-		requestAnimationFrame(() => { queued = false; update(); });
-	}, { passive: true });
-	return build;
-}
-
-// -------------------------------------------------------- projects (live)
-const FEATURED = "unwind-map";
-const ORDER = ["pe-walker", "pe-diff", "rtti-dump", "vtable-dump", "pattern-scan", "Panda", "opencode-discord-rpc"];
-const SUMMARY: Record<string, string> = {
-	"pe-walker": "Inspect any PE file",
-	"pe-diff": "Structural diff of two builds",
-	"rtti-dump": "Class hierarchies from MSVC RTTI",
-	"vtable-dump": "Vtables and the code in each slot",
-	"pattern-scan": "IDA-style signature scanning",
-	Panda: "Every game launcher in one library",
-	"opencode-discord-rpc": "Discord Rich Presence for OpenCode",
-};
-const HIGHLIGHTS: Record<string, string> = {
-	"pe-walker": "Headers, sections, imports and exports of any PE file, analyzed on Windows, Linux or macOS.",
-	"pe-diff": "Shows what changed between two builds and exits 1 on drift, so it can gate a CI pipeline.",
-	"rtti-dump": "Rebuilds inheritance trees from stripped MSVC binaries and emits Mermaid class diagrams.",
-	"vtable-dump": "Finds every vtable through its RTTI back-reference and lists the code in each slot.",
-	"pattern-scan": "A single header that came out about 11× faster than a byte-by-byte scan in my benchmark, plus the patscan CLI.",
-	Panda: "A Windows app (Electron) that reads each launcher's own files to list the games from Steam, Epic, GOG, Ubisoft, EA, Battle.net, Riot and Rockstar in one Steam-style library, then hands launching back to the real client.",
-	"opencode-discord-rpc": "Shows your model, project and live context size in Discord while you code with OpenCode V2. It talks to Discord's local IPC pipe directly, so there are no dependencies and no build step.",
-};
-const toolClass = (name: string) => `tc-${/^[a-z0-9-]+$/i.test(name) ? name.toLowerCase() : "other"}`;
-
-function renderFeature(repo: Repo | undefined) {
-	const meta = $("feature-meta");
-	if (!repo || !meta) return;
-	const desc = $("feature-desc");
-	if (desc && repo.description) desc.textContent = repo.description;
-	const latest = repo.releases[0];
-	meta.replaceChildren(
-		latest ? h("a", { href: latest.url }, `${latest.tag} · ${day(latest.date)}`) : h("span", {}, "No tagged release yet"),
-		h("span", {}, `updated ${ago(repo.pushed)}`),
-	);
-	if (repo.stars > 0) meta.append(h("span", {}, `★ ${repo.stars}`));
-}
-
-function panel(repo: Repo): Child[] {
-	const latest = repo.releases[0];
-	const out = OUTPUTS[repo.name];
-	return [
-		h("header", { class: "kp-head" },
-			h("h4", {}, h("i", { class: `sq ${toolClass(repo.name)}`, "aria-hidden": "true" }), repo.name),
-			h("p", { class: "kp-meta" },
-				repo.language ? h("span", {}, repo.language) : null,
-				latest ? h("a", { href: latest.url }, `${latest.tag} · ${day(latest.date)}`) : h("span", {}, "no release yet"),
-				h("span", {}, `updated ${ago(repo.pushed)}`),
-				repo.stars > 0 ? h("span", {}, `★ ${repo.stars}`) : null,
-			),
-		),
-		h("p", { class: "kp-desc" }, repo.description),
-		HIGHLIGHTS[repo.name] ? h("p", { class: "kp-hl" }, HIGHLIGHTS[repo.name]) : null,
-		out ? h("div", { class: "crop" }, h("pre", { class: "plate out", tabindex: "0", "aria-label": `${repo.name} preview` }, listing(out))) : null,
-		h("footer", { class: "kp-foot" },
-			repo.topics.length ? h("ul", { class: "topics" }, ...repo.topics.slice(0, 5).map((t) => h("li", {}, t))) : null,
-			h("a", { class: "btn", href: repo.url }, "Source ", h("span", { "aria-hidden": "true" }, "↗")),
-		),
-	];
-}
-
-function renderKit(repos: Repo[]) {
-	const list = $("kit-list");
-	const pane = $("kit-panel");
-	if (!list || !pane) return;
-	const sub = $("kit-sub");
-	if (sub && !repos.some((r) => r.language === "C++")) sub.textContent = "Smaller projects I've made while learning.";
-
-	const tabs = repos.map((repo, i) => {
-		const latest = repo.releases[0];
-		return h("button", { class: `kit-row ${toolClass(repo.name)}`, type: "button", role: "tab", id: `kit-tab-${i}`, "aria-controls": "kit-panel", "aria-selected": "false", tabindex: "-1" },
-			h("span", { class: "kr-idx" }, String(i + 1).padStart(2, "0")),
-			h("span", { class: "kr-name" }, repo.name),
-			h("span", { class: "kr-sum" }, SUMMARY[repo.name] ?? repo.description),
-			h("span", { class: "kr-ver" }, latest ? latest.tag : "–"),
-		);
-	});
-	let selected = -1;
-	const select = (i: number, focus = false) => {
-		if (i === selected) return;
-		selected = i;
-		tabs.forEach((t, j) => {
-			t.setAttribute("aria-selected", String(j === i));
-			t.setAttribute("tabindex", j === i ? "0" : "-1");
-		});
-		pane.setAttribute("aria-labelledby", tabs[i].id);
-		pane.replaceChildren(...panel(repos[i]).filter((c): c is Node | string => Boolean(c)));
-		if (focus) tabs[i].focus();
+		const x = Math.floor(((e.clientX - r.left) / r.width) * SIDE);
+		const y = Math.floor(((e.clientY - r.top) / r.height) * SIDE);
+		const f = x >= 0 && y >= 0 && x < SIDE && y < SIDE ? cells[y * SIDE + x] : undefined;
+		return f && !f.el.classList.contains("is-dim") ? f : undefined;
 	};
-	tabs.forEach((t, i) => {
-		t.addEventListener("click", () => select(i));
-		t.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") select(i); });
-		t.addEventListener("keydown", (e) => {
-			const step = e.key === "ArrowDown" || e.key === "ArrowRight" ? 1 : e.key === "ArrowUp" || e.key === "ArrowLeft" ? -1 : 0;
-			if (step) { e.preventDefault(); select((i + step + tabs.length) % tabs.length, true); }
-		});
+	const point = (e: PointerEvent) => {
+		const f = cellAt(e);
+		if (f && f !== hot) show(f);
+	};
+	svg.addEventListener("pointermove", point);
+	svg.addEventListener("pointerdown", point);
+	svg.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") show(null); });
+
+	// The filters dim what they leave out; the arrow keys step through what's left.
+	const range = $("min-size") as HTMLInputElement | null;
+	const rangeOut = $("min-size-value");
+	const onlyLp = $("only-lp") as HTMLInputElement | null;
+	const gaps = $("show-gaps") as HTMLInputElement | null;
+	const count = $("shown-count");
+	const visible = () => fns.filter((f) => !f.el.classList.contains("is-dim"));
+	const apply = () => {
+		const min = MIN_SIZES[Number(range?.value ?? 0)];
+		const lp = onlyLp?.checked ?? false;
+		let n = 0;
+		for (const f of fns) {
+			const out = f.size < min || (lp && f.kind !== "l");
+			f.el.classList.toggle("is-dim", out);
+			if (!out) n++;
+		}
+		// While a filter is on, the code that isn't a function steps back too, unless it's being marked.
+		for (const f of all) if (f.kind === "g" || f.kind === "u") f.el.classList.toggle("is-dim", (min > 0 || lp) && !(gaps?.checked ?? false));
+		const label = min ? `${bytes(min)} or more` : "Any size";
+		if (rangeOut) rangeOut.textContent = label;
+		range?.setAttribute("aria-valuetext", label);
+		if (count) count.textContent = min || lp ? `${n} function${n === 1 ? "" : "s"}` : "All 578";
+		svg.classList.toggle("gaps-on", gaps?.checked ?? false);
+		if (hot && hot.el.classList.contains("is-dim")) show(null);
+	};
+	range?.addEventListener("input", apply);
+	onlyLp?.addEventListener("change", apply);
+	gaps?.addEventListener("change", () => {
+		apply();
+		const gap = all.find((f) => f.kind === "g" && f.size > 100);
+		if (gaps.checked && gap) show(gap);
+		else if (!gaps.checked && hot?.kind === "g") show(null);
 	});
-	list.replaceChildren(...tabs);
-	if (tabs.length) select(0);
+	apply();
+
+	plate.addEventListener("keydown", (e) => {
+		const list = visible();
+		if (!list.length) return;
+		const at = hot ? list.indexOf(hot) : -1;
+		let next = -2;
+		if (e.key === "ArrowRight" || e.key === "ArrowDown") next = at + 1 >= list.length ? 0 : at + 1;
+		else if (e.key === "ArrowLeft" || e.key === "ArrowUp") next = at <= 0 ? list.length - 1 : at - 1;
+		else if (e.key === "PageDown") next = Math.min(list.length - 1, at + 10);
+		else if (e.key === "PageUp") next = Math.max(0, at - 10);
+		else if (e.key === "Home") next = 0;
+		else if (e.key === "End") next = list.length - 1;
+		else if (e.key === "Escape") { show(null); return; }
+		if (next < -1) return;
+		e.preventDefault();
+		show(list[next]);
+	});
+
+	// Trace the curve like a pen, in address order, the first time the map comes into view.
+	if (reduceMotion) return;
+	const traces = [...svg.querySelectorAll<SVGPolylineElement>("polyline")].filter((t) => !overlay.contains(t));
+	const lens = traces.map((t) => (t.getAttribute("points") ?? "").trim().split(/\s+/).length);
+	const total = lens.reduce((a, b) => a + b, 0);
+	for (const t of traces) { t.setAttribute("pathLength", "1"); t.style.strokeDasharray = "0 1"; }
+	const io = new IntersectionObserver(([e]) => {
+		if (!e.isIntersecting) return;
+		io.disconnect();
+		const T = 1900;
+		let acc = 0;
+		const drawing = traces.map((t, i) => {
+			const a = t.animate(
+				[{ strokeDasharray: "0 1" }, { strokeDasharray: "1 0" }],
+				{ duration: Math.max(12, (lens[i] / total) * T), delay: 120 + (acc / total) * T, easing: "linear", fill: "both" },
+			);
+			acc += lens[i];
+			a.finished.then(() => { a.cancel(); t.style.strokeDasharray = ""; }).catch(() => {});
+			return a;
+		});
+		svg.addEventListener("pointerenter", () => drawing.forEach((a) => a.finish()), { once: true });
+	}, { threshold: 0.35 });
+	io.observe(plate);
 }
 
-function renderReleases(repos: Repo[]) {
-	const releases = repos.flatMap((r) => r.releases.map((rel) => ({ repo: r.name, ...rel })))
-		.sort((a, b) => b.date.localeCompare(a.date))
-		.slice(0, 14);
-	const days = new Map<string, typeof releases>();
-	for (const rel of releases) days.set(day(rel.date), [...(days.get(day(rel.date)) ?? []), rel]);
-	$("timeline")?.replaceChildren(...[...days].map(([d, rels]) =>
-		h("li", { class: "vday" },
-			h("time", { datetime: d }, longDay(rels[0].date)),
-			h("ol", {}, ...rels.map((rel) =>
-				h("li", { class: toolClass(rel.repo) },
-					h("a", { href: rel.url },
-						h("i", { class: "sq", "aria-hidden": "true" }),
-						h("span", { class: "v-repo" }, rel.repo),
-						h("span", { class: "v-tag" }, rel.tag),
-					),
-					rel.summary ? h("p", {}, rel.summary) : null,
-				))),
-		)));
-	return releases;
+// -------------------------------------------------------- releases + month
+type Rel = Release & { repo: string };
+
+function renderReleases(rels: Rel[]) {
+	const list = $("rel-list");
+	if (!list || !rels.length) return;
+	const shown = rels.slice(0, 14);
+	const days = new Map<string, Rel[]>();
+	for (const r of shown) days.set(utcDay(r.date), [...(days.get(utcDay(r.date)) ?? []), r]);
+	list.replaceChildren(...[...days].flatMap(([d, items]) => [
+		h("h3", { class: "group" }, h("time", { datetime: d }, longDay(items[0].date))),
+		h("ul", {}, ...items.map((r, i) => h("li", {},
+			h("a", { href: r.url },
+				h("span", { class: `dot${r.repo === "Panda" ? " dot-panda" : TOOLS[r.repo]?.lang === "JavaScript" ? " dot-js" : ""}`, "aria-hidden": "true" }),
+				h("span", { class: "rel-name" }, `${r.repo} ${r.tag}`),
+				// A note repeated word for word on the same day is shown once.
+				r.summary && (i === 0 || firstSentence(items[i - 1].summary) !== firstSentence(r.summary))
+					? h("span", { class: "rel-note" }, firstSentence(r.summary)) : null,
+			),
+			h("time", { datetime: r.date }, utcTime(r.date)),
+		))),
+	]));
+	revealRows(list);
 }
 
-function renderProjects(data: GitHubData) {
-	const featured = data.repos.find((r) => r.name === FEATURED);
-	const rank = (r: Repo) => (ORDER.includes(r.name) ? ORDER.indexOf(r.name) : ORDER.length);
-	const rest = data.repos.filter((r) => r.name !== FEATURED).sort((a, b) => rank(a) - rank(b) || b.pushed.localeCompare(a.pushed));
-	renderFeature(featured);
-	renderKit(rest);
-	renderReleases(data.repos);
+function renderCalendar(rels: Rel[]) {
+	const fig = $("calendar");
+	if (!fig || !rels.length) return;
+	const month = rels[0].date.slice(0, 7);
+	const inMonth = rels.filter((r) => r.date.startsWith(month));
+	const perDay = new Map<number, number>();
+	for (const r of inMonth) perDay.set(Number(r.date.slice(8, 10)), (perDay.get(Number(r.date.slice(8, 10))) ?? 0) + 1);
+	const [y, m] = month.split("-").map(Number);
+	const first = new Date(Date.UTC(y, m - 1, 1));
+	const daysIn = new Date(Date.UTC(y, m, 0)).getUTCDate();
+	const lead = (first.getUTCDay() + 6) % 7; // Monday first
+	const monthName = first.toLocaleDateString("en-GB", { month: "long", timeZone: "UTC" });
+	const peak = [...perDay].sort((a, b) => b[1] - a[1])[0];
 
-	const all = data.repos.flatMap((r) => r.releases.map((rel) => ({ repo: r.name, ...rel }))).sort((a, b) => b.date.localeCompare(a.date));
-	const set = (id: string, text: string) => { const el = $(id); if (el) el.textContent = text; };
-	set("toc-tools", String(data.repos.length));
-	set("toc-releases", String(all.length));
-	const latest = $("latest");
-	if (latest && all[0]) {
-		latest.replaceChildren(h("i", { "aria-hidden": "true" }), h("span", {}, "Latest release: ", h("a", { href: all[0].url }, `${all[0].repo} ${all[0].tag}`), `, ${ago(all[0].date)}`));
-		latest.hidden = false;
+	const cells: HTMLElement[] = [];
+	for (let i = 0; i < lead; i++) cells.push(h("td", { class: "out" }));
+	for (let d = 1; d <= daysIn; d++) {
+		const n = perDay.get(d) ?? 0;
+		const label = `${d} ${monthName}${n ? `: ${n} release${n > 1 ? "s" : ""}` : ""}`;
+		cells.push(n
+			? h("td", { class: d === peak[0] ? "has peak" : "has", "aria-label": label }, String(d), h("b", { "aria-hidden": "true" }, String(n)))
+			: h("td", { "aria-label": label }, String(d)));
 	}
-	set("source-note", data.source === "live"
-		? `Live from the GitHub API · fetched ${ago(data.fetchedAt)}`
-		: `GitHub snapshot from ${day(data.fetchedAt)} (the live API is busy right now)`);
+	while (cells.length % 7) cells.push(h("td", { class: "out" }));
+	const weeks: HTMLElement[] = [];
+	for (let i = 0; i < cells.length; i += 7) weeks.push(h("tr", {}, ...cells.slice(i, i + 7)));
+
+	const total = inMonth.length;
+	const ord = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th"}`;
+	const caption = `${total} release${total > 1 ? "s" : ""} in ${monthName}` +
+		(peak && peak[1] > 1 && peak[1] < total ? `, ${peak[1]} of them on the ${ord(peak[0])}.` : ".");
+
+	fig.replaceChildren(
+		h("h3", { id: "calendar-title" }, `${monthName} ${y}`),
+		h("table", {},
+			h("thead", {}, h("tr", {}, ...["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => h("th", { scope: "col" }, d)))),
+			h("tbody", {}, ...weeks)),
+		h("figcaption", {}, caption),
+	);
+	if (reduceMotion) return;
+	fig.classList.add("is-waiting");
+	fig.querySelectorAll<HTMLElement>("td.has").forEach((td, i) => { td.style.transitionDelay = `${200 + i * 160}ms`; });
+	const io = new IntersectionObserver(([e]) => {
+		if (!e.isIntersecting) return;
+		io.disconnect();
+		fig.classList.remove("is-waiting");
+	}, { threshold: 0.4 });
+	io.observe(fig);
+}
+
+function render(data: GitHubData) {
+	repos.clear();
+	for (const r of data.repos) repos.set(r.name, r);
+	const current = document.querySelector<HTMLElement>(".row.is-on")?.dataset.tool;
+	if (current) renderPreview(current);
+
+	const rels: Rel[] = data.repos.flatMap((r) => r.releases.map((rel) => ({ repo: r.name, ...rel })))
+		.sort((a, b) => b.date.localeCompare(a.date));
+	renderReleases(rels);
+	renderCalendar(rels);
+
+	const latest = $("latest");
+	if (latest && rels[0]) {
+		latest.replaceChildren("Latest release: ", h("a", { href: rels[0].url }, `${rels[0].repo} ${rels[0].tag}`), `, ${ago(rels[0].date)}`);
+	}
+	const note = $("source-note");
+	if (note) note.textContent = data.source === "live"
+		? `Fetched ${ago(data.fetchedAt)}; times are UTC.`
+		: `This is a saved copy from ${longDay(data.fetchedAt)}, as the live API is busy; times are UTC.`;
 }
 
 async function loadProjects() {
 	try {
 		const res = await fetch("/api/github");
 		if (!res.ok) throw new Error(String(res.status));
-		renderProjects((await res.json()) as GitHubData);
+		render((await res.json()) as GitHubData);
 	} catch {
-		const note = $("source-note");
-		if (note) note.textContent = "Couldn't reach GitHub just now; every tool is at github.com/sheratonc.";
+		render({ ...(snapshot as GitHubData), source: "snapshot" });
 	}
 }
 
-// ------------------------------------------------------------ reveal on scroll
-function reveal() {
+// ------------------------------------------------------------ navigation
+function initNav() {
+	const links = new Map([...document.querySelectorAll<HTMLAnchorElement>(".nav a")].map((a) => [a.hash.slice(1), a]));
+	const io = new IntersectionObserver((entries) => {
+		for (const e of entries) {
+			if (!e.isIntersecting) continue;
+			for (const [id, a] of links) a.classList.toggle("is-here", id === e.target.id);
+		}
+	}, { rootMargin: "-45% 0px -50% 0px" });
+	for (const id of links.keys()) { const s = $(id); if (s) io.observe(s); }
+}
+
+// ------------------------------------------------- entrances, in reading order
+let rowObserver: IntersectionObserver | null = null;
+
+function revealRows(root: HTMLElement) {
+	if (!rowObserver) return;
+	root.querySelectorAll<HTMLElement>("ul").forEach((ul) => {
+		ul.querySelectorAll<HTMLElement>(":scope > li").forEach((li, i) => {
+			li.classList.add("rv-row");
+			li.style.setProperty("--i", String(Math.min(i, 10)));
+		});
+		rowObserver!.observe(ul);
+	});
+}
+
+function initReveal() {
 	if (reduceMotion || !("IntersectionObserver" in window)) return;
 	const io = new IntersectionObserver((entries) => {
-		for (const e of entries) if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
-	}, { rootMargin: "0px 0px -8% 0px" });
-	document.querySelectorAll(".sec:not(.hero) .sec-main > *").forEach((el) => { el.classList.add("rv"); io.observe(el); });
+		for (const e of entries) {
+			if (!e.isIntersecting) continue;
+			e.target.classList.add("in");
+			e.target.querySelectorAll(".rv-row").forEach((r) => r.classList.add("in"));
+			io.unobserve(e.target);
+		}
+	}, { rootMargin: "0px 0px -10% 0px" });
+	rowObserver = io;
+	const groups = [
+		".tools .sec-head > *", ".preview",
+		".map .sec-head > *", ".instrument",
+		".releases .sec-head > *", ".calendar",
+		".letter > *",
+		".contact-row > *",
+	];
+	for (const sel of groups) {
+		document.querySelectorAll<HTMLElement>(sel).forEach((el, i) => {
+			el.classList.add("rv");
+			el.style.setProperty("--i", String(i));
+			io.observe(el);
+		});
+	}
+	revealRows($("ledger")!);
+	revealRows($("rel-list")!);
 }
 
 // ------------------------------------------------------------------- boot
-$("out-unwind-map")?.replaceChildren(listing(OUTPUTS["unwind-map"]));
 $("year")!.textContent = String(new Date().getFullYear());
-$("build")!.textContent = __BUILD_DATE__;
 initTheme();
-decodeName();
-initToc();
-reveal();
-const rebuildMinimap = initMinimap();
-let pending = false;
-const relayout = () => {
-	if (pending) return;
-	pending = true;
-	requestAnimationFrame(() => { pending = false; layoutOffsets(); rebuildMinimap?.(); });
-};
-layoutOffsets();
-rebuildMinimap?.();
-new ResizeObserver(relayout).observe(document.body);
-document.fonts?.ready.then(relayout);
-initFigure();
+introHero();
+initDies();
+initTools();
+initReveal();
+initNav();
+initMap();
 loadProjects();

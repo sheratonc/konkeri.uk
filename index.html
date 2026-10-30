@@ -1,19 +1,20 @@
 <!doctype html>
-<html lang="en" data-zone="0">
+<html lang="en" class="no-js">
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>sheraton · learning binary analysis and Windows &amp; Linux internals</title>
-	<meta name="description" content="sheraton is a beginner learning reverse engineering and Windows &amp; Linux internals by building small tools in Rust, C++, C and Python.">
-	<meta name="color-scheme" content="light dark">
-	<meta name="theme-color" content="#f4efe9" media="(prefers-color-scheme: light)">
-	<meta name="theme-color" content="#100c0c" media="(prefers-color-scheme: dark)">
+	<title>sheraton · small tools that take binaries apart</title>
+	<meta name="description" content="sheraton is a self-taught beginner learning Windows and Linux internals by writing small open-source tools that read compiled programs: function recovery, PE inspection, RTTI and vtables, in Rust, C++, C and Python.">
+	<meta name="color-scheme" content="dark light">
+	<meta name="theme-color" content="#0b0b0b">
 	<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 	<link rel="canonical" href="https://konkeri.uk/">
+	<link rel="preload" href="/fonts/switzer-400.woff2" as="font" type="font/woff2" crossorigin>
+	<link rel="preload" href="/fonts/switzer-500.woff2" as="font" type="font/woff2" crossorigin>
 	<meta property="og:type" content="website">
 	<meta property="og:url" content="https://konkeri.uk/">
-	<meta property="og:title" content="sheraton · learning binary analysis and Windows & Linux internals">
-	<meta property="og:description" content="A beginner learning how binaries work, one small tool at a time.">
+	<meta property="og:title" content="sheraton · small tools that take binaries apart">
+	<meta property="og:description" content="Open-source tools for reading stripped binaries, written while learning Windows and Linux internals.">
 	<meta property="og:image" content="https://konkeri.uk/og.png">
 	<meta property="og:image:width" content="1200">
 	<meta property="og:image:height" content="630">
@@ -24,243 +25,175 @@
 <body>
 	<a class="skip" href="#main">Skip to content</a>
 
-	<header class="nav">
-		<a class="brand" href="#top" aria-label="konkeri, back to top">
-			<svg class="glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3H9V9H3V21H9V15H15V21H21V9H15V3H21"/></svg>
+	<header class="bar">
+		<a class="mark" href="#top" aria-label="konkeri, back to top">
+			<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3H9V9H3V21H9V15H15V21H21V9H15V3H21"/></svg>
 			<span>konkeri</span>
 		</a>
-		<nav class="nav-links" aria-label="Sections">
-			<a href="#about"><span>01</span>About</a>
-			<a href="#tools"><span>02</span>Tools</a>
-			<a href="#releases"><span>04</span>Releases</a>
-			<a href="#contact"><span>06</span>Contact</a>
+		<nav class="nav" aria-label="Sections">
+			<a href="#tools">Tools</a>
+			<a href="#map">Map</a>
+			<a href="#releases">Releases</a>
+			<a href="#about">About</a>
 		</nav>
-		<div class="theme" role="group" aria-label="Colour theme">
-			<button type="button" data-theme-set="paper" aria-pressed="false">Paper</button>
-			<button type="button" data-theme-set="ink" aria-pressed="false">Ink</button>
+		<div class="bar-end">
+			<button class="theme" id="theme" type="button" aria-label="Switch to the light theme">Light</button>
+			<a class="bar-gh" href="https://github.com/sheratonc" rel="me">GitHub</a>
 		</div>
-		<a class="nav-gh" href="https://github.com/sheratonc" rel="me">GitHub <span aria-hidden="true">↗</span></a>
 	</header>
 
 	<main id="main">
-		<!-- ============================================================ header -->
-		<section class="sec hero" id="top" data-sec="ELF header" data-label="Header">
-			<!-- The real first 448 bytes of unwind-map's x86_64-pie test fixture: an ELF header and program headers. -->
-			<pre class="hexbg" aria-hidden="true">00000000  <b>7f 45 4c 46</b> 02 01 01 00  00 00 00 00 00 00 00 00  |.ELF............|
-00000010  03 00 3e 00 01 00 00 00  60 14 00 00 00 00 00 00  |..&gt;.....`.......|
-00000020  40 00 00 00 00 00 00 00  c8 0a 00 00 00 00 00 00  |@...............|
-00000030  00 00 00 00 40 00 38 00  08 00 40 00 10 00 0e 00  |....@.8...@.....|
-00000040  06 00 00 00 04 00 00 00  40 00 00 00 00 00 00 00  |........@.......|
-00000050  40 00 00 00 00 00 00 00  40 00 00 00 00 00 00 00  |@.......@.......|
-00000060  c0 01 00 00 00 00 00 00  c0 01 00 00 00 00 00 00  |................|
-00000070  08 00 00 00 00 00 00 00  01 00 00 00 04 00 00 00  |................|
-00000080  00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00  |................|
-00000090  00 00 00 00 00 00 00 00  28 04 00 00 00 00 00 00  |........(.......|
-000000a0  28 04 00 00 00 00 00 00  00 10 00 00 00 00 00 00  |(...............|
-000000b0  01 00 00 00 05 00 00 00  30 04 00 00 00 00 00 00  |........0.......|
-000000c0  30 14 00 00 00 00 00 00  30 14 00 00 00 00 00 00  |0.......0.......|
-000000d0  9b 02 00 00 00 00 00 00  9b 02 00 00 00 00 00 00  |................|
-000000e0  00 10 00 00 00 00 00 00  01 00 00 00 06 00 00 00  |................|
-000000f0  d0 06 00 00 00 00 00 00  d0 26 00 00 00 00 00 00  |.........&amp;......|
-00000100  d0 26 00 00 00 00 00 00  00 01 00 00 00 00 00 00  |.&amp;..............|
-00000110  30 09 00 00 00 00 00 00  00 10 00 00 00 00 00 00  |0...............|
-00000120  02 00 00 00 06 00 00 00  d0 06 00 00 00 00 00 00  |................|
-00000130  d0 26 00 00 00 00 00 00  d0 26 00 00 00 00 00 00  |.&amp;.......&amp;......|
-00000140  d0 00 00 00 00 00 00 00  d0 00 00 00 00 00 00 00  |................|
-00000150  08 00 00 00 00 00 00 00  52 e5 74 64 04 00 00 00  |........R.td....|
-00000160  d0 06 00 00 00 00 00 00  d0 26 00 00 00 00 00 00  |.........&amp;......|
-00000170  d0 26 00 00 00 00 00 00  00 01 00 00 00 00 00 00  |.&amp;..............|
-00000180  30 09 00 00 00 00 00 00  01 00 00 00 00 00 00 00  |0...............|
-00000190  50 e5 74 64 04 00 00 00  d8 02 00 00 00 00 00 00  |P.td............|
-000001a0  d8 02 00 00 00 00 00 00  d8 02 00 00 00 00 00 00  |................|
-000001b0  4c 00 00 00 00 00 00 00  4c 00 00 00 00 00 00 00  |L.......L.......|</pre>
-			<div class="gutter" aria-hidden="true"><span class="addr">0x000000</span><span class="sname">e_ident</span><span class="meta">7f 45 4c 46</span></div>
-			<div class="sec-main">
-				<p class="kicker"><i aria-hidden="true"></i>Beginner · binary analysis · Windows &amp; Linux internals</p>
-				<h1 class="name" aria-label="sheraton">
-					<span class="ch" aria-hidden="true"><b>s</b><i>73</i></span><span class="ch" aria-hidden="true"><b>h</b><i>68</i></span><span class="ch" aria-hidden="true"><b>e</b><i>65</i></span><span class="ch" aria-hidden="true"><b>r</b><i>72</i></span><span class="ch" aria-hidden="true"><b>a</b><i>61</i></span><span class="ch" aria-hidden="true"><b>t</b><i>74</i></span><span class="ch" aria-hidden="true"><b>o</b><i>6f</i></span><span class="ch" aria-hidden="true"><b>n</b><i>6e</i></span>
-				</h1>
-				<div class="hero-grid">
-					<div class="hero-copy">
-						<p class="lede">I'm a beginner learning how binaries work by building small tools to take them apart: finding functions, class hierarchies and vtables, and spotting what changed between two builds.</p>
-						<p class="langs" aria-label="Languages"><span>Rust</span><span>C++</span><span>C</span><span>Python</span></p>
-						<p class="cta">
-							<a class="btn btn-solid" href="#tools">Browse the tools <span aria-hidden="true">↓</span></a>
-							<a class="btn" href="https://github.com/sheratonc" rel="me">github.com/sheratonc <span aria-hidden="true">↗</span></a>
-						</p>
-						<p class="latest" id="latest" hidden></p>
-					</div>
-					<figure class="fig" id="fig1">
-						<div class="crop"><div class="plate fig-plate" id="fig-plate"><noscript><img src="/fig-unwind-map.svg" alt="Hilbert-curve map of a stripped binary's executable code, one coloured trace per recovered function" width="128" height="128"></noscript></div></div>
-						<figcaption>
-							<span class="fig-no">Fig. 1</span>
-							<span>A stripped 406 KiB Linux binary, mapped by <a href="#tool-unwind-map">unwind-map</a>. Code runs along a Hilbert curve; each trace is one recovered function.</span>
-							<output class="readout" id="fig-readout">578 functions · 91.9% covered · hover a trace</output>
-						</figcaption>
-					</figure>
+		<section class="hero" id="top" aria-labelledby="hero-title">
+			<h1 id="hero-title">Small tools that take binaries&nbsp;apart</h1>
+			<div class="hero-text">
+				<p class="lead">I’m sheraton. I’m teaching myself how Windows and Linux programs work by writing tools that read them back, in Rust, C++, C and Python.</p>
+				<p class="actions">
+					<a class="btn" href="#tools">See the tools</a>
+					<a class="link" href="https://github.com/sheratonc" rel="me">github.com/sheratonc</a>
+				</p>
+				<p class="latest" id="latest">Latest release: <a href="https://github.com/sheratonc/Panda/releases/tag/v1.1.0">Panda v1.1.0</a>, 15 October 2026</p>
+			</div>
+			<figure class="dies" id="dies">
+				<div class="dies-frame">
+					<img class="is-on" src="/img/siemens-sab-8086-die.jpg" width="1280" height="1248" alt="Die photograph of a Siemens SAB 8086 microprocessor: a square of silicon with bond wires at its edges" decoding="async" fetchpriority="high" data-caption="Siemens SAB 8086, the chip x86 is named after. 1978." data-src="https://commons.wikimedia.org/wiki/File:Siemens_SAB_8086_die.JPG">
+					<img src="/img/intel-80386-dx-die.jpg" width="1280" height="1201" alt="Die photograph of an Intel 80386 DX microprocessor" loading="lazy" decoding="async" data-caption="Intel 80386 DX, the first 32-bit x86. 1985." data-src="https://commons.wikimedia.org/wiki/File:Intel_80386_DX_die.JPG">
+					<img src="/img/intel-80486-dx2-die.jpg" width="1280" height="748" alt="Die photograph of an Intel 80486 DX2 microprocessor, gold and orange blocks of cache and logic" loading="lazy" decoding="async" data-caption="Intel 80486 DX2. 1992." data-src="https://commons.wikimedia.org/wiki/File:Intel_80486_DX2_die.JPG">
+					<img src="/img/intel-pentium-mmx-die.jpg" width="1280" height="1105" alt="Die photograph of an Intel Pentium MMX microprocessor" loading="lazy" decoding="async" data-caption="Intel Pentium MMX. 1997." data-src="https://commons.wikimedia.org/wiki/File:Intel_Pentium_MMX_die.JPG">
 				</div>
+				<figcaption><span id="dies-caption">Siemens SAB 8086, the chip x86 is named after. 1978.</span> <a id="dies-credit" href="https://commons.wikimedia.org/wiki/File:Siemens_SAB_8086_die.JPG">Photo</a> by Pauli Rautakorpi, <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>.</figcaption>
+			</figure>
+		</section>
 
-				<div class="toc">
-					<div class="toc-head">
-						<h2 class="label">Section headers</h2>
-						<p>This page, laid out the way <code>readelf -S</code> shows a binary.</p>
-					</div>
-					<table class="shdr">
-						<thead><tr><th scope="col">[Nr]</th><th scope="col">Name</th><th scope="col">Contents</th><th scope="col" class="num">Offset</th><th scope="col" class="num hide-sm">Size</th><th scope="col" class="hide-sm">Flg</th></tr></thead>
-						<tbody>
-							<tr data-for="about"><td>[ 1]</td><td><a href="#about">.comment</a></td><td>About: who I am and what I'm learning</td><td class="num off">–</td><td class="num size hide-sm">–</td><td class="hide-sm">MS</td></tr>
-							<tr data-for="tools"><td>[ 2]</td><td><a href="#tools">.text</a></td><td>Tools: <span id="toc-tools">6</span> learning projects, live from GitHub</td><td class="num off">–</td><td class="num size hide-sm">–</td><td class="hide-sm">AX</td></tr>
-							<tr data-for="toolbox"><td>[ 3]</td><td><a href="#toolbox">.rodata</a></td><td>Toolbox: what I've been learning with</td><td class="num off">–</td><td class="num size hide-sm">–</td><td class="hide-sm">A</td></tr>
-							<tr data-for="releases"><td>[ 4]</td><td><a href="#releases">.gnu.version</a></td><td>Releases: <span id="toc-releases">10</span> tagged releases</td><td class="num off">–</td><td class="num size hide-sm">–</td><td class="hide-sm">A</td></tr>
-							<tr data-for="method"><td>[ 5]</td><td><a href="#method">.note</a></td><td>Method: how I'm learning</td><td class="num off">–</td><td class="num size hide-sm">–</td><td class="hide-sm">A</td></tr>
-							<tr data-for="contact"><td>[ 6]</td><td><a href="#contact">.dynamic</a></td><td>Contact: where to find me</td><td class="num off">–</td><td class="num size hide-sm">–</td><td class="hide-sm">WA</td></tr>
-						</tbody>
-					</table>
+		<section class="tools" id="tools" aria-labelledby="tools-title">
+			<div class="sec-head">
+				<h2 id="tools-title">Tools</h2>
+				<p>Eight open-source projects, each doing one job. The binary-analysis tools have no third-party dependencies and are tested on Windows, Linux and macOS.</p>
+			</div>
+			<div class="tools-grid">
+				<div class="ledger" id="ledger">
+					<h3 class="group">Binary analysis</h3>
+					<ul>
+						<li><a class="row" href="https://github.com/sheratonc/unwind-map" data-tool="unwind-map"><span class="r-name">unwind-map</span><span class="r-kind">Functions from stripped ELF files</span><span class="r-lang">Rust</span></a></li>
+						<li><a class="row" href="https://github.com/sheratonc/pe-walker" data-tool="pe-walker"><span class="r-name">pe-walker</span><span class="r-kind">Inspect any PE file</span><span class="r-lang">C++</span></a></li>
+						<li><a class="row" href="https://github.com/sheratonc/pe-diff" data-tool="pe-diff"><span class="r-name">pe-diff</span><span class="r-kind">What changed between two builds</span><span class="r-lang">C++</span></a></li>
+						<li><a class="row" href="https://github.com/sheratonc/rtti-dump" data-tool="rtti-dump"><span class="r-name">rtti-dump</span><span class="r-kind">Class hierarchies from MSVC RTTI</span><span class="r-lang">C++</span></a></li>
+						<li><a class="row" href="https://github.com/sheratonc/vtable-dump" data-tool="vtable-dump"><span class="r-name">vtable-dump</span><span class="r-kind">Vtables and the code in each slot</span><span class="r-lang">C++</span></a></li>
+						<li><a class="row" href="https://github.com/sheratonc/pattern-scan" data-tool="pattern-scan"><span class="r-name">pattern-scan</span><span class="r-kind">IDA-style signature scanning</span><span class="r-lang">C++</span></a></li>
+					</ul>
+					<h3 class="group">Other projects</h3>
+					<ul>
+						<li><a class="row" href="https://github.com/sheratonc/Panda" data-tool="Panda"><span class="r-name">Panda</span><span class="r-kind">Every game launcher in one library</span><span class="r-lang">Electron</span></a></li>
+						<li><a class="row" href="https://github.com/sheratonc/opencode-discord-rpc" data-tool="opencode-discord-rpc"><span class="r-name">opencode-discord-rpc</span><span class="r-kind">Discord status for OpenCode</span><span class="r-lang">JavaScript</span></a></li>
+					</ul>
 				</div>
+				<article class="preview" id="preview" aria-live="polite"></article>
 			</div>
 		</section>
 
-		<!-- ============================================================ about -->
-		<section class="sec" id="about" data-sec=".comment" data-label="About">
-			<div class="gutter" aria-hidden="true"><span class="addr">0x000000</span><span class="sname">.comment</span><span class="meta">MS · <span class="size">0x0</span></span></div>
-			<div class="sec-main">
-				<h2 class="title"><span class="idx">01</span>About</h2>
-				<div class="about">
-					<div class="prose">
-						<p class="big">I'm <strong>sheraton</strong>, a beginner teaching myself systems programming and reverse engineering on Windows and Linux.</p>
-						<p>I learn best by building things, so most of my projects are small tools that help me see what happens between source code and a running program: how compilers lay out objects and metadata, how linkers put a binary together, how loaders map it into memory, and how debuggers and unwinders read it back.</p>
-					</div>
-					<blockquote class="thesis">
-						<p>Something I've found fascinating so far: the metadata a compiler <em>has</em> to leave in a binary, such as RTTI, vtables, unwind tables and import tables, survives stripping. It can tell you a surprising amount about how a program is put together.</p>
-						<footer class="label">Something I've learned</footer>
-					</blockquote>
-				</div>
-				<dl class="focus">
-					<div><dt>Windows x64</dt><dd>Learning PE/COFF layout, the MSVC C++ ABI, RTTI and class hierarchies, vtables, imports and exports.</dd></div>
-					<div><dt>Linux</dt><dd>Learning ELF, the System V AMD64 ABI, DWARF call frame information and <code>.eh_frame</code>, program headers and the loader.</dd></div>
-					<div><dt>Tooling</dt><dd>Reading stripped binaries with Ghidra, GDB, x64dbg and WinDbg, and writing small tools to help along the way.</dd></div>
-					<div><dt>Languages</dt><dd>C++ for my Windows tools, Rust for cross-platform command-line tools, C for the low-level parts, Python for scripts. Still learning all four.</dd></div>
-				</dl>
+		<section class="map" id="map" aria-labelledby="map-title">
+			<div class="sec-head">
+				<h2 id="map-title">A stripped binary, mapped</h2>
+				<p>unwind-map is my biggest project so far. It recovers every function in a stripped Linux binary from the <code>.eh_frame</code> unwind tables that <code>strip</code> can’t remove, then draws them in address order along a Hilbert curve. This is a real run on a 406&nbsp;KiB program.</p>
 			</div>
-		</section>
-
-		<!-- ============================================================ tools -->
-		<section class="sec" id="tools" data-sec=".text" data-label="Tools">
-			<div class="gutter" aria-hidden="true"><span class="addr">0x000000</span><span class="sname">.text</span><span class="meta">AX · <span class="size">0x0</span></span></div>
-			<div class="sec-main">
-				<h2 class="title"><span class="idx">02</span>Tools</h2>
-				<p class="sec-lede">These are my learning projects, and they're all open source. The binary-analysis tools are tested in CI on Windows, Linux and macOS and have no third-party dependencies. This section reads live from GitHub.</p>
-
-				<article class="feature" id="tool-unwind-map">
-					<div class="feature-copy">
-						<p class="label"><i class="sq tc-unwind-map" aria-hidden="true"></i>Biggest project so far · Rust</p>
-						<h3><a href="https://github.com/sheratonc/unwind-map">unwind-map</a></h3>
-						<p class="feature-desc" id="feature-desc">Recover function boundaries from stripped Linux ELF binaries using the .eh_frame unwind tables that strip can't remove.</p>
-						<p>In my tests it found every function that has unwind info without any false starts, and its output can go straight back into <code>objcopy</code> to give a stripped binary its symbols again.</p>
-						<dl class="spec">
-							<div><dt>Input</dt><dd>Stripped ELF binaries</dd></div>
-							<div><dt>Architectures</dt><dd>x86-64 · x86 · AArch64</dd></div>
-							<div><dt>Output</dt><dd>Function table · objcopy symbols · SVG maps (<a href="#fig1">Fig. 1</a>)</dd></div>
-							<div><dt>Dependencies</dt><dd>0</dd></div>
-						</dl>
-						<p class="feature-meta" id="feature-meta"></p>
-						<p class="cta"><a class="btn" href="https://github.com/sheratonc/unwind-map">Source on GitHub <span aria-hidden="true">↗</span></a></p>
+			<div class="instrument-wrap">
+			<div class="instrument" id="instrument">
+				<div class="inst-view">
+					<div class="plate" id="plate" tabindex="0" role="group" aria-label="Map of 578 recovered functions. Use the arrow keys to step through them." aria-describedby="readout">
+						<img src="/fig-unwind-map.svg" width="128" height="128" alt="Hilbert-curve map of a stripped binary's executable code, one coloured trace per recovered function">
 					</div>
-					<figure class="listing">
-						<div class="crop"><pre class="plate out" id="out-unwind-map" tabindex="0" aria-label="unwind-map output"></pre></div>
-						<figcaption><span class="fig-no">Fig. 2</span> A real run: map the functions, then hand them to objcopy and nm.</figcaption>
-					</figure>
-				</article>
-
-				<div class="kit">
-					<div class="kit-head">
-						<h3 id="kit-title">My other projects</h3>
-						<p id="kit-sub">Smaller projects I've made while learning: C++17 tools for Windows PE files and MSVC binaries, a game launcher and a Discord plugin.</p>
+					<output class="readout" id="readout" for="plate">578 functions, 91.9% of the code covered</output>
+				</div>
+				<div class="inst-controls">
+					<h3 class="inst-title">unwind-map on <span class="nowrap">./target</span></h3>
+					<div class="ctl ctl-range">
+						<label for="min-size">Smallest shown</label>
+						<output id="min-size-value" for="min-size">Any size</output>
+						<input id="min-size" type="range" min="0" max="7" step="1" value="0" aria-valuetext="Any size">
 					</div>
-					<div class="kit-grid">
-						<div class="kit-list" id="kit-list" role="tablist" aria-orientation="vertical" aria-labelledby="kit-title">
-							<noscript>
-								<ul class="fallback">
-									<li><a href="https://github.com/sheratonc/pe-walker">pe-walker</a>: inspect the structure of a PE file</li>
-									<li><a href="https://github.com/sheratonc/pe-diff">pe-diff</a>: structural diff of two PE files</li>
-									<li><a href="https://github.com/sheratonc/rtti-dump">rtti-dump</a>: recover class hierarchies from MSVC RTTI</li>
-									<li><a href="https://github.com/sheratonc/vtable-dump">vtable-dump</a>: find vtables and their slots</li>
-									<li><a href="https://github.com/sheratonc/pattern-scan">pattern-scan</a>: IDA-style signature scanning</li>
-									<li><a href="https://github.com/sheratonc/Panda">Panda</a>: every game launcher in one library</li>
-									<li><a href="https://github.com/sheratonc/opencode-discord-rpc">opencode-discord-rpc</a>: Discord Rich Presence for OpenCode</li>
-								</ul>
-							</noscript>
-						</div>
-						<div class="kit-panel" id="kit-panel" role="tabpanel" aria-live="polite"></div>
+					<div class="ctl">
+						<label for="only-lp">Only with landing pads</label>
+						<input id="only-lp" class="switch" type="checkbox" role="switch">
 					</div>
-					<p class="source" id="source-note"></p>
+					<div class="ctl">
+						<label for="show-gaps">Mark code with no unwind info</label>
+						<input id="show-gaps" class="switch" type="checkbox" role="switch">
+					</div>
+					<dl class="facts">
+						<div><dt>Shown</dt><dd id="shown-count">578 functions</dd></div>
+						<div><dt>Recovered</dt><dd>578 of 578</dd></div>
+						<div><dt>Code covered</dt><dd>91.9%</dd></div>
+						<div><dt>Code size</dt><dd>405.9 KiB</dd></div>
+						<div><dt>Names before</dt><dd>None, it’s stripped</dd></div>
+					</dl>
+					<a class="link inst-link" href="https://github.com/sheratonc/unwind-map">unwind-map on GitHub</a>
 				</div>
 			</div>
-		</section>
-
-		<!-- ============================================================ toolbox -->
-		<section class="sec" id="toolbox" data-sec=".rodata" data-label="Toolbox">
-			<div class="gutter" aria-hidden="true"><span class="addr">0x000000</span><span class="sname">.rodata</span><span class="meta">A · <span class="size">0x0</span></span></div>
-			<div class="sec-main">
-				<h2 class="title"><span class="idx">03</span>Toolbox</h2>
-				<p class="sec-lede">The languages and tools I've been learning with so far.</p>
-				<dl class="consts">
-					<div><dt>Languages</dt><dd><span>Rust</span><span>C++17/20</span><span>C</span><span>Python</span></dd></div>
-					<div><dt>Platforms</dt><dd><span>Windows</span><span>Linux</span></dd></div>
-					<div><dt>Build</dt><dd><span>CMake</span><span>Cargo</span><span>MSVC</span><span>MinGW-w64</span><span>GCC</span><span>Clang / LLD</span></dd></div>
-					<div><dt>Analysis</dt><dd><span>Ghidra</span><span>x64dbg</span><span>WinDbg</span><span>GDB</span><span>readelf / objdump</span></dd></div>
-					<div><dt>Formats &amp; ABIs</dt><dd><span>PE/COFF</span><span>ELF</span><span>DWARF CFI</span><span>MSVC C++ ABI</span><span>System V AMD64</span><span>Microsoft x64</span></dd></div>
-				</dl>
 			</div>
 		</section>
 
-		<!-- ============================================================ releases -->
-		<section class="sec" id="releases" data-sec=".gnu.version" data-label="Releases">
-			<div class="gutter" aria-hidden="true"><span class="addr">0x000000</span><span class="sname">.gnu.version</span><span class="meta">A · <span class="size">0x0</span></span></div>
-			<div class="sec-main">
-				<h2 class="title"><span class="idx">04</span>Releases</h2>
-				<p class="sec-lede">Every tagged release of my projects, newest first.</p>
-				<ol class="vers" id="timeline"></ol>
+		<section class="releases field" id="releases" aria-labelledby="releases-title">
+			<div class="sec-head">
+				<h2 id="releases-title">Releases</h2>
+				<p>Every tagged release, newest first, read live from GitHub. <span id="source-note"></span></p>
+			</div>
+			<div class="releases-grid">
+				<div class="rel-list" id="rel-list">
+					<h3 class="group"><time datetime="2026-10-15">15 October 2026</time></h3>
+					<ul>
+						<li><a href="https://github.com/sheratonc/Panda/releases/tag/v1.1.0"><span class="dot dot-panda" aria-hidden="true"></span><span class="rel-name">Panda v1.1.0</span><span class="rel-note">The launcher formerly known as OmniLauncher. New name, new panda logo.</span></a><time>11:56</time></li>
+						<li><a href="https://github.com/sheratonc/Panda/releases/tag/v1.0.2"><span class="dot dot-panda" aria-hidden="true"></span><span class="rel-name">Panda v1.0.2</span><span class="rel-note">Major UI redesign: it now looks and works like a Steam library.</span></a><time>11:41</time></li>
+						<li><a href="https://github.com/sheratonc/Panda/releases/tag/v1.0.1"><span class="dot dot-panda" aria-hidden="true"></span><span class="rel-name">Panda v1.0.1</span><span class="rel-note">Fixes the All games mode.</span></a><time>11:30</time></li>
+						<li><a href="https://github.com/sheratonc/Panda/releases/tag/v1.0.0"><span class="dot dot-panda" aria-hidden="true"></span><span class="rel-name">Panda v1.0.0</span><span class="rel-note">First release: one grid for every game.</span></a><time>11:19</time></li>
+					</ul>
+					<h3 class="group"><time datetime="2026-10-10">10 October 2026</time></h3>
+					<ul>
+						<li><a href="https://github.com/sheratonc/pattern-scan/releases/tag/v1.1.0"><span class="dot" aria-hidden="true"></span><span class="rel-name">pattern-scan v1.1.0</span><span class="rel-note">The patscan command-line tool.</span></a><time>05:25</time></li>
+						<li><a href="https://github.com/sheratonc/vtable-dump/releases/tag/v1.1.0"><span class="dot" aria-hidden="true"></span><span class="rel-name">vtable-dump v1.1.0</span><span class="rel-note">Readable names and a visual README.</span></a><time>05:25</time></li>
+						<li><a href="https://github.com/sheratonc/rtti-dump/releases/tag/v1.1.0"><span class="dot" aria-hidden="true"></span><span class="rel-name">rtti-dump v1.1.0</span><span class="rel-note">New views of the class hierarchy.</span></a><time>05:25</time></li>
+						<li><a href="https://github.com/sheratonc/pe-diff/releases/tag/v1.1.0"><span class="dot" aria-hidden="true"></span><span class="rel-name">pe-diff v1.1.0</span><span class="rel-note">Colored diffs and a visual README.</span></a><time>05:25</time></li>
+						<li><a href="https://github.com/sheratonc/pe-walker/releases/tag/v1.1.0"><span class="dot" aria-hidden="true"></span><span class="rel-name">pe-walker v1.1.0</span><span class="rel-note">Colored output and a visual README.</span></a><time>05:25</time></li>
+						<li><a href="https://github.com/sheratonc/pattern-scan/releases/tag/v1.0.0"><span class="dot" aria-hidden="true"></span><span class="rel-name">pattern-scan v1.0.0</span><span class="rel-note">First tagged release. The single header is attached.</span></a><time>01:33</time></li>
+						<li><a href="https://github.com/sheratonc/vtable-dump/releases/tag/v1.0.0"><span class="dot" aria-hidden="true"></span><span class="rel-name">vtable-dump v1.0.0</span><span class="rel-note">First tagged release, with prebuilt binaries.</span></a><time>01:33</time></li>
+						<li><a href="https://github.com/sheratonc/rtti-dump/releases/tag/v1.0.0"><span class="dot" aria-hidden="true"></span><span class="rel-name">rtti-dump v1.0.0</span><span class="rel-note">First tagged release, with prebuilt binaries.</span></a><time>01:33</time></li>
+						<li><a href="https://github.com/sheratonc/pe-diff/releases/tag/v1.0.0"><span class="dot" aria-hidden="true"></span><span class="rel-name">pe-diff v1.0.0</span><span class="rel-note">First tagged release, with prebuilt binaries.</span></a><time>01:33</time></li>
+						<li><a href="https://github.com/sheratonc/pe-walker/releases/tag/v1.0.0"><span class="dot" aria-hidden="true"></span><span class="rel-name">pe-walker v1.0.0</span><span class="rel-note">First tagged release, with prebuilt binaries.</span></a><time>01:33</time></li>
+					</ul>
+				</div>
+				<figure class="calendar" id="calendar" aria-labelledby="calendar-title"></figure>
 			</div>
 		</section>
 
-		<!-- ============================================================ method -->
-		<section class="sec" id="method" data-sec=".note" data-label="Method">
-			<div class="gutter" aria-hidden="true"><span class="addr">0x000000</span><span class="sname">.note</span><span class="meta">A · <span class="size">0x0</span></span></div>
-			<div class="sec-main">
-				<h2 class="title"><span class="idx">05</span>Method</h2>
-				<ol class="notes">
-					<li><p class="label">Note 01</p><h3>Learning by building</h3><p>I learn each file format by writing a tool that reads it, then testing it on binaries I've built myself.</p></li>
-					<li><p class="label">Note 02</p><h3>Checking my work</h3><p>I test against real binaries and compare my results with established tools like readelf and llvm-readobj, so I find out when I've got something wrong.</p></li>
-					<li><p class="label">Note 03</p><h3>Keeping it small</h3><p>Each tool does one thing, and my binary-analysis tools have no third-party dependencies, so I can understand every line.</p></li>
-					<li><p class="label">Note 04</p><h3>Writing it down</h3><p>Each README explains the file format the tool reads, which helps me check that I really understand it.</p></li>
-				</ol>
+		<section class="about" id="about" aria-labelledby="about-title">
+			<div class="letter">
+				<svg class="letter-mark" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="22"/><path d="M13 13H19V19H13V31H19V25H25V31H31V19H25V13H31"/></svg>
+				<h2 id="about-title">About me</h2>
+				<p>I’m teaching myself systems programming and reverse engineering on Windows and Linux. I learn best by building things, so most of what I make is a small tool that shows me one step between source code and a running program: how compilers lay out objects, how linkers put a binary together, how loaders map it into memory, and how debuggers and unwinders read it back.</p>
+				<p>What hooked me is how much a compiler has to leave behind. RTTI, vtables, unwind tables and import tables all <mark>survive stripping</mark>, and together they say a surprising amount about how a program was put together. Most of my tools read one of them.</p>
+				<p>I keep each tool to one job, and the binary-analysis ones have no third-party dependencies, so I can understand every line. I test them on binaries I’ve built myself and compare the results with readelf and llvm-readobj, so I find out when I’ve got something wrong. Each README explains the file format its tool reads, which is how I check I really understand it.</p>
+				<p>I write C++ for the Windows tools, Rust for the cross-platform command-line ones, C for the low-level parts and Python for scripts, and I’m still learning all four. Along the way I read binaries in Ghidra, GDB, x64dbg and WinDbg.</p>
+				<p class="sign">sheraton<span>konkeri.uk</span></p>
 			</div>
 		</section>
 
-		<!-- ============================================================ contact -->
-		<section class="sec contact" id="contact" data-sec=".dynamic" data-label="Contact">
-			<div class="gutter" aria-hidden="true"><span class="addr">0x000000</span><span class="sname">.dynamic</span><span class="meta">WA · <span class="size">0x0</span></span></div>
-			<div class="sec-main">
-				<h2 class="title"><span class="idx">06</span>Contact</h2>
-				<p class="contact-lede">I'm still learning, so feedback, corrections and tips are really welcome. The best way to reach me is on GitHub: open an issue on any repository.</p>
-				<a class="biglink" href="https://github.com/sheratonc" rel="me">github.com/sheratonc<span aria-hidden="true">↗</span></a>
-				<pre class="dyn" aria-label="readelf -d style summary of the links above"><span class="dim">  Tag        Type       Name/Value</span>
- 0x00000001 (NEEDED)   Shared library: [<a href="https://github.com/sheratonc">github.com/sheratonc</a>]
- 0x0000000e (SONAME)   Library soname: [konkeri.uk]</pre>
+		<section class="contact" id="contact" aria-labelledby="contact-title">
+			<div class="contact-row">
+				<p class="contact-line">Corrections, tips and questions are all welcome, especially from people who know this better than I&nbsp;do.</p>
+				<span class="contact-pic"><img src="/img/siemens-sab-8086-die.jpg" width="1280" height="1248" alt="Close crop of an 8086 die: gold bond wires landing on the edge of the silicon" loading="lazy" decoding="async"></span>
+				<div class="contact-links">
+					<h2 id="contact-title">Spotted a mistake?</h2>
+					<a href="https://github.com/sheratonc?tab=repositories">Open an issue on any repository</a>
+					<a href="https://github.com/sheratonc" rel="me">github.com/sheratonc</a>
+					<p>GitHub is the best way to reach me.</p>
+				</div>
 			</div>
 		</section>
 	</main>
 
-	<footer class="footer">
-		<span class="eof">EOF</span>
-		<span>konkeri.uk · built <span id="build">2026</span> · served from Cloudflare's edge</span>
-		<span>© <span id="year">2026</span> sheraton</span>
+	<footer class="foot">
+		<p class="foot-what">konkeri.uk, sheraton’s tools</p>
+		<p class="foot-links"><a href="https://github.com/sheratonc" rel="me">GitHub</a><a href="https://github.com/sheratonc/konkeri.uk">Source of this site</a><a href="#top">Back to top</a></p>
+		<p class="foot-end">© <span id="year">2026</span> sheraton</p>
+		<p class="foot-credit">Die photographs by Pauli Rautakorpi, <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>, via Wikimedia Commons: <a href="https://commons.wikimedia.org/wiki/File:Siemens_SAB_8086_die.JPG">8086</a>, <a href="https://commons.wikimedia.org/wiki/File:Intel_80386_DX_die.JPG">80386 DX</a>, <a href="https://commons.wikimedia.org/wiki/File:Intel_80486_DX2_die.JPG">80486 DX2</a>, <a href="https://commons.wikimedia.org/wiki/File:Intel_Pentium_MMX_die.JPG">Pentium MMX</a>. The 8086 is also shown cropped.</p>
 	</footer>
-
-	<aside class="minimap" id="minimap" aria-hidden="true">
-		<svg id="mm" viewBox="0 0 128 128"></svg>
-		<p><span id="mm-sec">ELF header</span><span id="mm-off">0x000000</span></p>
-	</aside>
 </body>
 </html>
